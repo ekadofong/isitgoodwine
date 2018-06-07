@@ -38,6 +38,16 @@ class WineDatabase ( object ):
         
 
     def load_model ( self, modelname='./savmodel.pkl', vecname='./savvectorizer.pkl'):
+        '''
+        Load a pickled model.
+
+        Parameters
+        ---------
+        modelname : str, default='./savmodel.pkl'
+         The file that holds the pickled model
+        vecname : str, default='./savvectorizer.pkl'
+         The file that holds the pickled CountVectorizer
+        '''
         self.model = joblib.load( modelname )        
         self.tf_vectorizer = joblib.load ( vecname )
         
@@ -51,10 +61,24 @@ class WineDatabase ( object ):
             self.df[pcol] = tpdf
             
     def save_model ( self, fname='./savmodel.pkl', vecname='./savvectorizer.pkl'):
+        '''
+        Pickles a model.
+
+        Parameters
+        ----------
+        fname : str, default='./savmodel.pkl'
+         Filename for the model to be saved to
+        vecname : str, default='./savvectorizer.pkl'
+         Filename for the vectorizer to be saved to
+        '''
         joblib.dump ( self.model, 'savmodel.pkl')
         joblib.dump ( self.tf_vectorizer, 'savvectorizer.pkl' )
 
     def construct_model ( self ):
+        '''
+        Learn an 10 topic LDA model on the wine descriptions provided in
+        the database.        
+        '''
         df = self.df
         tf_vectorizer = CountVectorizer(max_df=0.95, min_df=2,
                                         max_features=2000,
@@ -69,6 +93,9 @@ class WineDatabase ( object ):
         #return tf_vectorizer, model
 
     def locate_provinces ( self ):
+        '''
+        Find the approximate locations of the wine sources.
+        '''
         provinces = self.df['province'].unique ()
         print ("Locating %i provinces..." % provinces.size)
         provdf = pd.DataFrame ( index=provinces, columns=['lat','lon','country', 'r_alwin'] )
@@ -89,6 +116,9 @@ class WineDatabase ( object ):
         self.geowines = provdf
 
     def load_provinces (self, provinces=None):
+        '''
+        Load the province-home distance to the main database.
+        '''
         if provinces is None:
             provinces = self.geowines
         hasloc = self.df['province'].dropna()
@@ -104,6 +134,28 @@ class WineDatabase ( object ):
                   max_distance=1e8, # in miles
                   nsuggest=3,
                   verbose=True ):
+        '''
+        Based off a user description, suggest best-fit wines based off of description.
+        The best-fit wine is determined from a least squares fit to the PDF of the user
+        descripton.
+
+        Parameters
+        ----------
+        mydescription : str
+         The description of the wine that you want to drink
+        max_price : float, default=20.
+         The maximum wine price to consider, in dollars
+        min_price : float, default=0.
+         The minimum wine price to consider, in dollars
+        min_points : float, default=90.
+         The minimum wine points to consider (max=100)
+        max_distance : float, default=1e8
+         The maximum distance from home to consider, in miles
+        nsuggest : int, default=3
+         Number of wines to suggest
+        verbose : bool, default=True
+         If true, the topic PDF of the user description will be printed
+        '''
         tf_mydescrip = self.tf_vectorizer.transform ( [mydescription] )
         ctopic = self.model.transform( tf_mydescrip )
         if verbose:
@@ -130,6 +182,18 @@ price: $%.2f
                   hit.description ))
 
     def suggest_at_pricepoints (self, description, pricepoints=[20.,50.,100.], min_points=90.):
+        '''
+        From a user description, suggest best-fit wines at each price point.
+
+        Parameters
+        ----------
+        description : str
+         User description of desired wine
+        pricepoints : array-like, default=[20.,50.,100.]
+         Price brackets to consider
+        min_points : float, default=90.
+         Minimum points to consider
+        '''
         print('User description: %s' % description)
         
         for i,ppoint in enumerate(pricepoints):
@@ -145,7 +209,15 @@ price: $%.2f
                           min_points=min_points, nsuggest=1, verbose=False )
 
             
-    def getloc ( self, row ):        
+    def getloc ( self, row ):
+        '''
+        From a wine region information, find the lat/lon coordinates.
+
+        Parameters
+        ----------
+        row : Series-like
+         Wine to consider
+        '''
         if type(row) is int:
             row = self.df.loc[row]
         string = ', '.join(row[['region_1','region_2','province']].dropna().values)
@@ -164,6 +236,14 @@ price: $%.2f
         return location
 
 def viz_wineppfrontier ( df ):
+    '''
+    Visualize the relationship between wine price and wine points.
+
+    Parameters
+    ----------
+    df : DataFrame
+      Wine database
+    '''
     cdf = df.query('price<100.')
     plt.hist2d ( cdf['price'], cdf.points, bins=[np.arange(4,40),np.arange(80,100)] )
     cfit = optimize.curve_fit ( fn, cdf.price, cdf.points )[0]
